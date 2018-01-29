@@ -7,11 +7,11 @@ using Newtonsoft.Json;
 
 namespace BitBayPublicApi.Services
 {
-    public class PublicApiClient : IPublicApiClient
+    public class PublicApiClientService : IPublicApiClientService
     {
         private readonly HttpClient _client;
 
-        public PublicApiClient(ISettings settings)
+        public PublicApiClientService(ISettings settings)
         {
             _client = new HttpClient { BaseAddress = new Uri(settings.PublicApiUrl) };
         }
