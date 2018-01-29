@@ -1,6 +1,8 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using BitBayApiManager;
 using BitBayCurrencies.Enums;
 using BitBayPublicApi.Models;
 using BitBayPublicApi.Models.Requests;
@@ -11,32 +13,62 @@ namespace BitBayTradesInfo.Services
 {
     public class TradeInfoService : ITradeInfoService
     {
-        private readonly IPublicApiClient _publicApiClient;
+        private readonly IPublicApiClientService _publicApiClient;
 
         private readonly ITradeInfoDbService _tradeInfoDbService;
 
-        private TradeInfoState _state;
+        private readonly IApiRequestsManagingService _apiRequestsManagingService;
 
-        public TradeInfoService(IPublicApiClient publicApiClient, ITradeInfoDbService tradeInfoDbService)
+        private readonly IDictionary<Currency, TradeInfoState> _currencySyncStateDict;
+
+        private readonly IDictionary<Currency, List<TradeTransaction>> _transactionsDict;
+
+        public TradeInfoService(IPublicApiClientService publicApiClient, ITradeInfoDbService tradeInfoDbService, IApiRequestsManagingService apiRequestsManagingService)
         {
             _publicApiClient = publicApiClient;
             _tradeInfoDbService = tradeInfoDbService;
+            _apiRequestsManagingService = apiRequestsManagingService;
+            _currencySyncStateDict = new Dictionary<Currency, TradeInfoState>();
+            _transactionsDict = new Dictionary<Currency, List<TradeTransaction>>();
         }
 
-        public TradeInfoState State => _state;
-
-        public async Task<TradeInfoState> Sync()
+        public List<TradeTransaction> GetTransactions(Currency currency)
         {
-            if (_state != TradeInfoState.NotSynchronized)
+            if (_transactionsDict.ContainsKey(currency))
             {
-                return _state;
+                return _transactionsDict[currency];
             }
 
-            _state = TradeInfoState.SynchronizationStarted;
+            return null;
+        }
 
-            var storedTransactions = (await _tradeInfoDbService.GetStoredTransactions()).ToList();
+        public TradeInfoState GetSyncState(Currency currency)
+        {
+            if (_currencySyncStateDict.ContainsKey(currency))
+            {
+                return _currencySyncStateDict[currency];
+            }
 
-            var getTradeRequest = new GetTradesRequest(Currency.Game)
+            return TradeInfoState.NotSynchronized;
+        }
+
+        public async Task<TradeInfoState> Sync(Currency currency)
+        {
+            InitializeDictionaries(currency);
+
+            if (_currencySyncStateDict[currency] != TradeInfoState.NotSynchronized)
+            {
+                return _currencySyncStateDict[currency];
+            }
+
+            var storedTransactions = (await _tradeInfoDbService.GetStoredTransactions(currency))?.ToList();
+
+            if (storedTransactions == null)
+            {
+                storedTransactions = new List<TradeTransaction>();
+            }
+
+            var getTradeRequest = new GetTradesRequest(currency)
             {
                 SinceTid = storedTransactions.OrderByDescending(t => t.Tid).FirstOrDefault()?.Tid
             };
@@ -44,23 +76,73 @@ namespace BitBayTradesInfo.Services
 
             var syncFinished = false;
 
-            while (!syncFinished)
+            try
             {
-                var newTransactions = await _publicApiClient.GetData<IEnumerable<TradeTransaction>, GetTradesRequest>(getTradeRequest);
+                var i = 1M;
+                Console.WriteLine("Starting downloading trades with TID greater than = " + getTradeRequest.SinceTid);
 
-                if (newTransactions == null || newTransactions.Count() == 0)
+                while (!syncFinished)
                 {
-                    syncFinished = true;
+                    var newTransactions = await _apiRequestsManagingService.MakeRequest(
+                        o => _publicApiClient.GetData<IEnumerable<TradeTransaction>, GetTradesRequest>(o),
+                        getTradeRequest);
+
+                    if (newTransactions == null || newTransactions.Count() == 0)
+                    {
+                        syncFinished = true;
+                    }
+
+                    storedTransactions.AddRange(newTransactions);
+
+                    getTradeRequest.SinceTid = storedTransactions.OrderByDescending(t => t.Tid).FirstOrDefault()?.Tid;
+
+                    Console.WriteLine("Last downloaded TID = " + getTradeRequest.SinceTid);
+
+                    if (i % 100 == 0)
+                    {
+                        Console.WriteLine("Auto safe - Storing trades in file");
+
+                        await _tradeInfoDbService.SaveTransactions(storedTransactions, currency);
+                    }
+
+                    i++;
                 }
+            }
+            catch (Exception exc)
+            {
+                Console.WriteLine("Error occured: " + exc);
 
-                storedTransactions.AddRange(newTransactions);
+                _currencySyncStateDict[currency] = TradeInfoState.NotSynchronized;
 
-                getTradeRequest.SinceTid = storedTransactions.OrderByDescending(t => t.Tid).FirstOrDefault()?.Tid;
+                return _currencySyncStateDict[currency];
+            }
+            finally
+            {
+                await _tradeInfoDbService.SaveTransactions(storedTransactions, currency);
             }
 
-            _state = TradeInfoState.Synchronized;
+            _transactionsDict[currency] = storedTransactions;
 
-            return _state;
+            //TODO Run background task - getting and synchronizing new data
+
+            _currencySyncStateDict[currency] = TradeInfoState.Synchronized;
+
+            Console.WriteLine("Sync finished successfully!");
+
+            return _currencySyncStateDict[currency];
+        }
+
+        private void InitializeDictionaries(Currency currency)
+        {
+            if (!_currencySyncStateDict.ContainsKey(currency))
+            {
+                _currencySyncStateDict.Add(currency, TradeInfoState.NotSynchronized);
+            }
+
+            if (!_transactionsDict.ContainsKey(currency))
+            {
+                _transactionsDict.Add(currency, null);
+            }
         }
     }
 }
