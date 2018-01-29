@@ -14,7 +14,7 @@ namespace BitBayPublicApi.Models.Requests
 
         public override string GetEndPointUrl()
         {
-            string parameters = "?" + (SortDesc ? "desc" : "asc");
+            string parameters = "?sort=" + (SortDesc ? "desc" : "asc");
 
             if (SinceTid.HasValue)
             {
