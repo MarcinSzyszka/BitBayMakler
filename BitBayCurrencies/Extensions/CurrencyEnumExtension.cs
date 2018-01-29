@@ -1,4 +1,4 @@
-﻿using System;
+﻿using System.Linq;
 using System.Reflection;
 using BitBayCurrencies.Attributes;
 using BitBayCurrencies.Enums;
@@ -9,18 +9,7 @@ namespace BitBayCurrencies.Extensions
     {
         public static string GetApiParameterName(this Currency currency)
         {
-
-            return (currency.GetType().GetCustomAttribute(typeof(ApiParameterNameAttribute)) as ApiParameterNameAttribute)?.Name;
-
-            var currencyValues = Enum.GetValues(currency.GetType());
-
-            foreach (Currency curr in currencyValues)
-            {
-                if (curr == currency)
-                {
-
-                }
-            }
+            return (currency.GetType().GetMember(currency.ToString()).FirstOrDefault()?.GetCustomAttribute(typeof(ApiParameterNameAttribute)) as ApiParameterNameAttribute)?.Name;
         }
     }
 }
