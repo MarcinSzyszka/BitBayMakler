@@ -13,6 +13,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\BitBayApiManager\BitBayApiManager.csproj" />
     <ProjectReference Include="..\BitBayCommon\BitBayCommon.csproj" />
     <ProjectReference Include="..\BitBayPublicApi\BitBayPublicApi.csproj" />
   </ItemGroup>
