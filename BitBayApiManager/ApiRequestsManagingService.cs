@@ -24,27 +24,15 @@ namespace BitBayApiManager
 
             var executed = false;
 
-            int elapsedMiliseconds = 0;
-            var stoper = new Stopwatch();
-
             while (!executed)
             {
-                stoper.Reset();
-
-                var delayMiliseconds = elapsedMiliseconds < 1000 ? 1000 - elapsedMiliseconds : 0;
-
-                await Task.Delay(delayMiliseconds);
+                await Task.Delay(1000);
 
                 var firstRequestInQeue = _waitingRequests.OrderByDescending(r => r.Key).First();
 
                 if ((firstRequestInQeue.Value as Func<TIn, Task<TOut>>) == requestAction)
                 {
-                    stoper.Start();
-
                     result = await requestAction(parameter);
-
-                    stoper.Stop();
-                    elapsedMiliseconds = (int)stoper.ElapsedMilliseconds;
 
                     var deleted = false;
 
