@@ -81,7 +81,7 @@ namespace BitBayTradesInfo.Services
                 var i = 1M;
                 Console.WriteLine("Starting downloading trades with TID greater than = " + getTradeRequest.SinceTid);
 
-                while (!syncFinished)
+                while (true)
                 {
                     var newTransactions = await _apiRequestsManagingService.MakeRequest(
                         o => _publicApiClient.GetData<IEnumerable<TradeTransaction>, GetTradesRequest>(o),
@@ -89,7 +89,7 @@ namespace BitBayTradesInfo.Services
 
                     if (newTransactions == null || newTransactions.Count() == 0)
                     {
-                        syncFinished = true;
+                        break;
                     }
 
                     storedTransactions.AddRange(newTransactions);
