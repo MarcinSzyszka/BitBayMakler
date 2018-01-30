@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -19,17 +20,17 @@ namespace BitBayTradesInfo.Services
 
         private readonly IApiRequestsManagingService _apiRequestsManagingService;
 
-        private readonly IDictionary<Currency, TradeInfoState> _currencySyncStateDict;
+        private readonly ConcurrentDictionary<Currency, TradeInfoState> _currencySyncStateDict;
 
-        private readonly IDictionary<Currency, List<TradeTransaction>> _transactionsDict;
+        private readonly ConcurrentDictionary<Currency, List<TradeTransaction>> _transactionsDict;
 
         public TradeInfoService(IPublicApiClientService publicApiClient, ITradeInfoDbService tradeInfoDbService, IApiRequestsManagingService apiRequestsManagingService)
         {
             _publicApiClient = publicApiClient;
             _tradeInfoDbService = tradeInfoDbService;
             _apiRequestsManagingService = apiRequestsManagingService;
-            _currencySyncStateDict = new Dictionary<Currency, TradeInfoState>();
-            _transactionsDict = new Dictionary<Currency, List<TradeTransaction>>();
+            _currencySyncStateDict = new ConcurrentDictionary<Currency, TradeInfoState>();
+            _transactionsDict = new ConcurrentDictionary<Currency, List<TradeTransaction>>();
         }
 
         public List<TradeTransaction> GetTransactions(Currency currency)
@@ -136,12 +137,12 @@ namespace BitBayTradesInfo.Services
         {
             if (!_currencySyncStateDict.ContainsKey(currency))
             {
-                _currencySyncStateDict.Add(currency, TradeInfoState.NotSynchronized);
+                _currencySyncStateDict.GetOrAdd(currency, TradeInfoState.NotSynchronized);
             }
 
             if (!_transactionsDict.ContainsKey(currency))
             {
-                _transactionsDict.Add(currency, null);
+                _transactionsDict.GetOrAdd(currency, new List<TradeTransaction>());
             }
         }
     }
